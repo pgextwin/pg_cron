@@ -40,32 +40,6 @@ if ($pgMajor -notin @(14, 15)) {
 }
 
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
-$flexRoot = Join-Path $tempRoot "winflexbison-2.5.24"
-$flexZip = Join-Path $tempRoot "win_flex_bison-2.5.24.zip"
-$flexExe = Join-Path $flexRoot "win_flex.exe"
-
-if (-not (Test-Path $flexExe)) {
-    Invoke-WebRequest -Uri "https://github.com/lexxmark/winflexbison/releases/download/v2.5.24/win_flex_bison-2.5.24.zip" -OutFile $flexZip
-
-    $expectedHash = "39C6086CE211D5415500ACC5ED2D8939861CA1696AEE48909C7F6DAF5122B505"
-    $actualHash = (Get-FileHash $flexZip -Algorithm SHA256).Hash
-    if ($actualHash -ne $expectedHash) {
-        throw "WinFlexBison SHA256 mismatch. Expected $expectedHash, got $actualHash."
-    }
-
-    if (Test-Path $flexRoot) {
-        Remove-Item $flexRoot -Recurse -Force
-    }
-
-    New-Item -ItemType Directory -Force -Path $flexRoot | Out-Null
-    Expand-Archive -Path $flexZip -DestinationPath $flexRoot -Force
-}
-
-$queryScanC = Join-Path $UpstreamDir "query_scan.c"
-& $flexExe "--outfile=$queryScanC" (Join-Path $UpstreamDir "query_scan.l")
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path $queryScanC)) {
-    throw "Failed to generate query_scan.c with WinFlexBison."
-}
 
 $coreTag = "REL_{0}_{1}" -f $pgMajor, $pgMinorPart
 $queryJumbleC = Join-Path $UpstreamDir "pgextwin_queryjumble.c"
@@ -96,11 +70,9 @@ if errorlevel 1 exit /b %errorlevel%
 cd /d "$UpstreamDir"
 cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /I"$UpstreamDir" /c pg_hint_plan.c /Fopg_hint_plan.obj
 if errorlevel 1 exit /b %errorlevel%
-cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /I"$UpstreamDir" /c query_scan.c /Foquery_scan.obj
-if errorlevel 1 exit /b %errorlevel%
 cl /nologo /DWIN32_NO_STATUS /DBUILDING_DLL /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /c pgextwin_queryjumble.c /Foqueryjumble.obj
 if errorlevel 1 exit /b %errorlevel%
-cl /nologo pg_hint_plan.obj query_scan.obj queryjumble.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
+cl /nologo pg_hint_plan.obj queryjumble.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
 "@ | Set-Content -Path $cmdFile -Encoding ascii
 
 & cmd.exe /d /c $cmdFile
