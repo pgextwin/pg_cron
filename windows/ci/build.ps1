@@ -26,6 +26,19 @@ if (-not (Test-Path $vsDevCmd)) {
     throw "VsDevCmd.bat was not found: $vsDevCmd"
 }
 
+$pgConfig = Join-Path $PgRoot "bin\pg_config.exe"
+$pgVersionText = (& $pgConfig --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $pgVersionText -notmatch 'PostgreSQL\s+(\d+\.\d+)') {
+    throw "Could not determine PostgreSQL version from pg_config: '$pgVersionText'"
+}
+
+$pgVersion = [string]$Matches[1]
+$pgMajor = [int]($pgVersion.Split('.')[0])
+
+if ($pgMajor -ne 16) {
+    throw "This probe build hook is intentionally limited to PostgreSQL 16."
+}
+
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $flexRoot = Join-Path $tempRoot "winflexbison-2.5.24"
 $flexZip = Join-Path $tempRoot "win_flex_bison-2.5.24.zip"
@@ -48,14 +61,49 @@ if (-not (Test-Path $flexExe)) {
     Expand-Archive -Path $flexZip -DestinationPath $flexRoot -Force
 }
 
-if (-not (Test-Path $flexExe)) {
-    throw "win_flex.exe was not found after extraction: $flexExe"
-}
-
 $queryScanC = Join-Path $UpstreamDir "query_scan.c"
 & $flexExe "--outfile=$queryScanC" (Join-Path $UpstreamDir "query_scan.l")
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $queryScanC)) {
     throw "Failed to generate query_scan.c with WinFlexBison."
+}
+
+$coreArchive = Join-Path $tempRoot "postgresql-$pgVersion.tar.gz"
+$coreShaFile = Join-Path $tempRoot "postgresql-$pgVersion.tar.gz.sha256"
+$coreExtract = Join-Path $tempRoot "postgresql-$pgVersion-source"
+$coreUrl = "https://ftp.postgresql.org/pub/source/v$pgVersion/postgresql-$pgVersion.tar.gz"
+$coreShaUrl = "$coreUrl.sha256"
+
+Invoke-WebRequest -Uri $coreUrl -OutFile $coreArchive
+Invoke-WebRequest -Uri $coreShaUrl -OutFile $coreShaFile
+
+$expectedCoreHash = ((Get-Content $coreShaFile -Raw).Trim() -split "\s+")[0].ToUpperInvariant()
+$actualCoreHash = (Get-FileHash $coreArchive -Algorithm SHA256).Hash
+if ($actualCoreHash -ne $expectedCoreHash) {
+    throw "PostgreSQL source SHA256 mismatch. Expected $expectedCoreHash, got $actualCoreHash."
+}
+
+if (Test-Path $coreExtract) {
+    Remove-Item $coreExtract -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path $coreExtract | Out-Null
+
+& tar.exe -xzf $coreArchive -C $coreExtract
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to extract PostgreSQL $pgVersion source archive."
+}
+
+$coreRoot = Join-Path $coreExtract "postgresql-$pgVersion"
+$queryJumbleDir = Join-Path $coreRoot "src\backend\nodes"
+$queryJumbleC = Join-Path $queryJumbleDir "queryjumblefuncs.c"
+
+foreach ($required in @(
+    $queryJumbleC,
+    (Join-Path $queryJumbleDir "queryjumblefuncs.funcs.c"),
+    (Join-Path $queryJumbleDir "queryjumblefuncs.switch.c")
+)) {
+    if (-not (Test-Path $required)) {
+        throw "Required PostgreSQL generated query-jumble source was not found: $required"
+    }
 }
 
 $sourceText = Get-Content (Join-Path $UpstreamDir "pg_hint_plan.c") -Raw
@@ -79,12 +127,14 @@ cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_
 if errorlevel 1 exit /b %errorlevel%
 cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /I"$UpstreamDir" /c query_scan.c /Foquery_scan.obj
 if errorlevel 1 exit /b %errorlevel%
-cl /nologo pg_hint_plan.obj query_scan.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
+cl /nologo /DWIN32_NO_STATUS /DBUILDING_DLL /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /I"$queryJumbleDir" /c "$queryJumbleC" /Foqueryjumble.obj
+if errorlevel 1 exit /b %errorlevel%
+cl /nologo pg_hint_plan.obj query_scan.obj queryjumble.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
 "@ | Set-Content -Path $cmdFile -Encoding ascii
 
 & cmd.exe /d /c $cmdFile
 if ($LASTEXITCODE -ne 0) {
-    throw "pg_hint_plan MSVC build failed with exit code $LASTEXITCODE."
+    throw "pg_hint_plan PostgreSQL 16 MSVC build failed with exit code $LASTEXITCODE."
 }
 
 $dll = Join-Path $UpstreamDir "pg_hint_plan.dll"
