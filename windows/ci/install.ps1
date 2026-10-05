@@ -10,19 +10,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$dll = Join-Path $UpstreamDir "pg_cron.dll"
-$control = Join-Path $UpstreamDir "pg_cron.control"
-$baseSql = Join-Path $UpstreamDir "pg_cron--1.0.sql"
-$upgradeSql = Join-Path $UpstreamDir "pg_cron--*--*.sql"
+$dll = Join-Path $UpstreamDir "pg_hint_plan.dll"
+$control = Join-Path $UpstreamDir "pg_hint_plan.control"
 $extensionDir = Join-Path $PgRoot "share\extension"
 
-foreach ($path in @($dll, $control, $baseSql)) {
+foreach ($path in @($dll, $control)) {
     if (-not (Test-Path $path)) {
-        throw "Required pg_cron file was not found: $path"
+        throw "Required pg_hint_plan file was not found: $path"
     }
 }
 
-Copy-Item $dll (Join-Path $PgRoot "lib\pg_cron.dll") -Force
-Copy-Item $control (Join-Path $extensionDir "pg_cron.control") -Force
-Copy-Item $baseSql (Join-Path $extensionDir "pg_cron--1.0.sql") -Force
-Copy-Item $upgradeSql $extensionDir -Force
+Copy-Item $dll (Join-Path $PgRoot "lib\pg_hint_plan.dll") -Force
+Copy-Item $control (Join-Path $extensionDir "pg_hint_plan.control") -Force
+Copy-Item (Join-Path $UpstreamDir "pg_hint_plan--*.sql") $extensionDir -Force
