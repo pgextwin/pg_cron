@@ -4,11 +4,10 @@
   "upstream": {
     "repository": "ossc-db/pg_hint_plan",
     "perPostgresql": {
-      "17": { "ref": "REL17_1_7_1", "version": "1.7.1" },
-      "18": { "ref": "REL18_1_8_0", "version": "1.8.0" }
+      "16": { "ref": "REL16_1_6_2", "version": "1.6.2" }
     }
   },
-  "postgresql": { "majors": [17, 18] },
+  "postgresql": { "majors": [16] },
   "windows": { "architecture": "x64" },
   "license": {
     "verifyAgainstUpstream": true,
