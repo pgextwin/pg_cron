@@ -26,6 +26,19 @@ if (-not (Test-Path $vsDevCmd)) {
     throw "VsDevCmd.bat was not found: $vsDevCmd"
 }
 
+$pgConfig = Join-Path $PgRoot "bin\pg_config.exe"
+$pgVersionText = (& $pgConfig --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $pgVersionText -notmatch 'PostgreSQL\s+(\d+)\.(\d+)') {
+    throw "Could not determine PostgreSQL major/minor from pg_config: '$pgVersionText'"
+}
+
+$pgMajor = [int]$Matches[1]
+$pgMinorPart = [int]$Matches[2]
+
+if ($pgMajor -notin @(14, 15)) {
+    throw "This probe build hook is intentionally limited to PostgreSQL 14 and 15."
+}
+
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $flexRoot = Join-Path $tempRoot "winflexbison-2.5.24"
 $flexZip = Join-Path $tempRoot "win_flex_bison-2.5.24.zip"
@@ -48,14 +61,20 @@ if (-not (Test-Path $flexExe)) {
     Expand-Archive -Path $flexZip -DestinationPath $flexRoot -Force
 }
 
-if (-not (Test-Path $flexExe)) {
-    throw "win_flex.exe was not found after extraction: $flexExe"
-}
-
 $queryScanC = Join-Path $UpstreamDir "query_scan.c"
 & $flexExe "--outfile=$queryScanC" (Join-Path $UpstreamDir "query_scan.l")
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $queryScanC)) {
     throw "Failed to generate query_scan.c with WinFlexBison."
+}
+
+$coreTag = "REL_{0}_{1}" -f $pgMajor, $pgMinorPart
+$queryJumbleC = Join-Path $UpstreamDir "pgextwin_queryjumble.c"
+$queryJumbleUrl = "https://raw.githubusercontent.com/postgres/postgres/$coreTag/src/backend/utils/misc/queryjumble.c"
+Write-Host "Fetching matching PostgreSQL queryjumble source: $queryJumbleUrl"
+Invoke-WebRequest -Uri $queryJumbleUrl -OutFile $queryJumbleC
+
+if (-not (Test-Path $queryJumbleC)) {
+    throw "Matching PostgreSQL queryjumble.c was not downloaded."
 }
 
 $sourceText = Get-Content (Join-Path $UpstreamDir "pg_hint_plan.c") -Raw
@@ -79,12 +98,14 @@ cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_
 if errorlevel 1 exit /b %errorlevel%
 cl /nologo /DWIN32_NO_STATUS /Dstrcasecmp=_stricmp /DBUILDING_MODULE /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /I"$UpstreamDir" /c query_scan.c /Foquery_scan.obj
 if errorlevel 1 exit /b %errorlevel%
-cl /nologo pg_hint_plan.obj query_scan.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
+cl /nologo /DWIN32_NO_STATUS /DBUILDING_DLL /DWIN32 /D_WINDOWS /DWIN32_STACK_RLIMIT=4194304 /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /I"$PgRoot\include\server\port\win32_msvc" /I"$PgRoot\include\server\port\win32" /I"$PgRoot\include\server" /I"$PgRoot\include" /c pgextwin_queryjumble.c /Foqueryjumble.obj
+if errorlevel 1 exit /b %errorlevel%
+cl /nologo pg_hint_plan.obj query_scan.obj queryjumble.obj "$PgRoot\lib\postgres.lib" "$PgRoot\lib\libintl.lib" ws2_32.lib /link /DLL /DEF:pg_hint_plan.pgextwin.def /OUT:pg_hint_plan.dll
 "@ | Set-Content -Path $cmdFile -Encoding ascii
 
 & cmd.exe /d /c $cmdFile
 if ($LASTEXITCODE -ne 0) {
-    throw "pg_hint_plan MSVC build failed with exit code $LASTEXITCODE."
+    throw "pg_hint_plan PostgreSQL $pgMajor MSVC build failed with exit code $LASTEXITCODE."
 }
 
 $dll = Join-Path $UpstreamDir "pg_hint_plan.dll"
