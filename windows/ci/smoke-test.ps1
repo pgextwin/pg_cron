@@ -19,9 +19,9 @@ $pgIsReady = Join-Path $PgRoot "bin\pg_isready.exe"
 $psql = Join-Path $PgRoot "bin\psql.exe"
 
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
-$dataDir = Join-Path $tempRoot "pg_cron-pg$PostgreSqlMajor-data"
-$logFile = Join-Path $tempRoot "pg_cron-pg$PostgreSqlMajor.log"
-$setupSql = Join-Path $tempRoot "pg_cron-setup.sql"
+$dataDir = Join-Path $tempRoot "pg_hint_plan-pg$PostgreSqlMajor-data"
+$logFile = Join-Path $tempRoot "pg_hint_plan-pg$PostgreSqlMajor.log"
+$setupSql = Join-Path $tempRoot "pg_hint_plan-setup.sql"
 
 if (Test-Path $dataDir) {
     Remove-Item $dataDir -Recurse -Force
@@ -54,61 +54,50 @@ function Wait-Postgres {
 }
 
 try {
-    $serverOptions = "-p $PgPort -c shared_preload_libraries=pg_cron -c cron.database_name=postgres -c cron.use_background_workers=on -c max_worker_processes=20"
+    $serverOptions = "-p $PgPort -c shared_preload_libraries=pg_hint_plan"
 
     & $pgCtl -D $dataDir -l $logFile -o $serverOptions start
     if ($LASTEXITCODE -ne 0) {
         Show-PostgresLog
-        throw "Failed to start PostgreSQL with pg_cron preloaded."
+        throw "Failed to start PostgreSQL with pg_hint_plan preloaded."
     }
 
     Wait-Postgres
 
     @'
-CREATE EXTENSION pg_cron;
-DROP TABLE IF EXISTS public.pgextwin_cron_probe;
-CREATE TABLE public.pgextwin_cron_probe (
+CREATE EXTENSION pg_hint_plan;
+DROP TABLE IF EXISTS public.pgextwin_hint_test;
+CREATE TABLE public.pgextwin_hint_test (
     id integer PRIMARY KEY,
-    executed_at timestamptz NOT NULL DEFAULT clock_timestamp()
+    payload text NOT NULL
 );
-SELECT cron.schedule(
-    'pgextwin-ci',
-    '1 second',
-    'INSERT INTO public.pgextwin_cron_probe(id) VALUES (1) ON CONFLICT (id) DO NOTHING'
-);
+INSERT INTO public.pgextwin_hint_test
+SELECT g, repeat('x', 50)
+FROM generate_series(1, 5000) AS g;
+ANALYZE public.pgextwin_hint_test;
 '@ | Set-Content -Path $setupSql -Encoding utf8
 
     & $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -v ON_ERROR_STOP=1 -f $setupSql
     if ($LASTEXITCODE -ne 0) {
-        throw "CREATE EXTENSION or cron.schedule setup failed."
+        throw "CREATE EXTENSION or test setup failed."
     }
 
-    $executed = $false
-    for ($i = 0; $i -lt 30; $i++) {
-        $count = (
-            & $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -Atqc "SELECT count(*) FROM public.pgextwin_cron_probe;"
-        ) | Select-Object -Last 1
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to query the pg_cron probe table."
-        }
-
-        if (([string]$count).Trim() -eq "1") {
-            $executed = $true
-            break
-        }
-
-        Start-Sleep -Seconds 2
-    }
-
-    if (-not $executed) {
-        Show-PostgresLog
-        throw "pg_cron scheduled job did not execute within the expected window."
-    }
-
-    & $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -v ON_ERROR_STOP=1 -c "SELECT cron.unschedule('pgextwin-ci'); DROP TABLE public.pgextwin_cron_probe; DROP EXTENSION pg_cron;"
+    $plan = (& $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -Atqc "EXPLAIN (COSTS OFF) SELECT /*+ SeqScan(pgextwin_hint_test) */ * FROM public.pgextwin_hint_test WHERE id = 42;") -join [Environment]::NewLine
     if ($LASTEXITCODE -ne 0) {
-        throw "pg_cron smoke-test cleanup failed."
+        throw "Hinted EXPLAIN failed."
+    }
+
+    Write-Host "Hinted plan:"
+    Write-Host $plan
+
+    if ($plan -notmatch "Seq Scan on pgextwin_hint_test") {
+        Show-PostgresLog
+        throw "pg_hint_plan did not force the expected sequential scan."
+    }
+
+    & $psql -h 127.0.0.1 -p $PgPort -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP TABLE public.pgextwin_hint_test; DROP EXTENSION pg_hint_plan;"
+    if ($LASTEXITCODE -ne 0) {
+        throw "pg_hint_plan smoke-test cleanup failed."
     }
 }
 catch {
