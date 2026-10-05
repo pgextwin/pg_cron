@@ -1,20 +1,17 @@
 {
   "schemaVersion": 1,
-  "name": "pg_cron",
+  "name": "pg_hint_plan",
   "upstream": {
-    "repository": "citusdata/pg_cron",
-    "ref": "v1.6.8",
-    "version": "1.6.8"
+    "repository": "ossc-db/pg_hint_plan",
+    "perPostgresql": {
+      "17": { "ref": "REL17_1_7_1", "version": "1.7.1" },
+      "18": { "ref": "REL18_1_8_0", "version": "1.8.0" }
+    }
   },
-  "postgresql": {
-    "minMajor": 14,
-    "maxMajor": 18
-  },
-  "windows": {
-    "architecture": "x64"
-  },
+  "postgresql": { "majors": [17, 18] },
+  "windows": { "architecture": "x64" },
   "license": {
     "verifyAgainstUpstream": true,
-    "upstreamPath": "LICENSE"
+    "upstreamPath": "COPYRIGHT"
   }
 }
