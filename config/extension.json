@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "pg_cron",
+  "upstream": {
+    "repository": "citusdata/pg_cron",
+    "ref": "v1.6.8",
+    "version": "1.6.8"
+  },
+  "postgresql": {
+    "minMajor": 14,
+    "maxMajor": 18
+  },
+  "windows": {
+    "architecture": "x64"
+  },
+  "license": {
+    "verifyAgainstUpstream": true,
+    "upstreamPath": "LICENSE"
+  }
+}
