@@ -24,6 +24,7 @@ jobs:
     with:
       extension_config_path: config/extension.json
 
+  # OIDC and attestation write scopes exist only on the release build path.
   release_build:
     if: ${{ startsWith(github.ref, 'refs/heads/release/') }}
     permissions:
