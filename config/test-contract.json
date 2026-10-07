@@ -1,0 +1,51 @@
+{
+  "contractVersion": 2,
+  "extension": "pg_cron",
+  "smokeTest": {
+    "script": "windows/ci/smoke-test.ps1"
+  },
+  "runtimeRequirements": {
+    "extensionCreation": "required",
+    "preload": "shared",
+    "backgroundWorker": true,
+    "clientExecutable": {
+      "required": false,
+      "packagePaths": []
+    }
+  },
+  "testSetup": {
+    "preload": "shared",
+    "backgroundWorker": true,
+    "settings": [
+      {
+        "name": "cron.database_name",
+        "value": "postgres"
+      },
+      {
+        "name": "cron.use_background_workers",
+        "value": "on"
+      },
+      {
+        "name": "max_worker_processes",
+        "value": "20"
+      }
+    ]
+  },
+  "coverage": {
+    "createExtension": "covered",
+    "backgroundWorker": "covered",
+    "clientExecutable": "not-applicable",
+    "serverLogAssertions": "not-applicable",
+    "upgrade": "not-covered"
+  },
+  "functionalScenarios": [
+    {
+      "id": "scheduled-job-executes",
+      "description": "Schedules a one-second cron job in background-worker mode and verifies the job inserts a probe row.",
+      "evidence": [
+        "background-worker-side-effect",
+        "sql-result"
+      ]
+    }
+  ]
+}
