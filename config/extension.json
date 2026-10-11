@@ -4,7 +4,8 @@
   "upstream": {
     "repository": "citusdata/pg_cron",
     "ref": "v1.6.8",
-    "version": "1.6.8"
+    "version": "1.6.8",
+    "commit": "5cedfa472ccc83567aa23ec645925ed8489a7797"
   },
   "postgresql": {
     "minMajor": 14,
