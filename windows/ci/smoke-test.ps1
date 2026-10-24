@@ -40,6 +40,23 @@ function Show-PostgresLog {
     }
 }
 
+# GitHub-hosted Windows can reserve/restrict static high ports (e.g. 55432).
+# Ask the OS for an actually bindable loopback TCP port in this ephemeral runner.
+# Reuse that SAME port for postgres, pg_isready and every real SQL smoke probe;
+# this only fixes test isolation and never skips the functional assertions.
+$portProbe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+try {
+    $portProbe.Start()
+    $PgPort = ([System.Net.IPEndPoint]$portProbe.LocalEndpoint).Port
+}
+finally {
+    $portProbe.Stop()
+}
+if ($PgPort -lt 1024 -or $PgPort -gt 65535) {
+    throw "Failed to acquire an OS-allocated loopback port for PostgreSQL smoke."
+}
+Write-Host "Selected bindable isolated PostgreSQL smoke port: $PgPort"
+
 function Wait-Postgres {
     for ($i = 0; $i -lt 45; $i++) {
         & $pgIsReady -h 127.0.0.1 -p $PgPort -q
