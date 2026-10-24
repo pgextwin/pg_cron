@@ -32,6 +32,25 @@ class WindowsSummaryTests(unittest.TestCase):
             with self.subTest(result=value):
                 self.assertEqual(res.returncode, expected)
 
+    def test_pg_cron_smoke_uses_os_allocated_loopback_port_without_skipping_sql(self):
+        # Windows hosted runners sometimes block the fixed matrix port 55432.
+        # A successful ephemeral loopback bind ensures the same port is then
+        # passed to PostgreSQL, readiness checks and the genuine cron SQL test.
+        script = (ROOT / "windows" / "ci" / "smoke-test.ps1").read_text()
+        for expected in (
+            "[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)",
+            "$portProbe.Start()", "$portProbe.Stop()",
+            "$PgPort = ([System.Net.IPEndPoint]$portProbe.LocalEndpoint).Port",
+            'if ($PgPort -lt 1024 -or $PgPort -gt 65535)',
+            "-p $PgPort", "& $pgCtl", "& $pgIsReady", "& $psql",
+            "CREATE EXTENSION pg_cron;", "SELECT cron.schedule(",
+            "pg_cron scheduled job did not execute",
+        ):
+            with self.subTest(marker=expected):
+                self.assertIn(expected, script)
+        self.assertGreaterEqual(script.count("-p $PgPort"), 4)
+        self.assertNotIn("cron.use_background_workers=off", script)
+
     def test_workflow_depends_on_complete_reusable_matrix_not_pg14_name(self):
         contents = (ROOT / ".github" / "workflows" / "windows.yml").read_text()
         self.assertIn("  windows_required:", contents)
