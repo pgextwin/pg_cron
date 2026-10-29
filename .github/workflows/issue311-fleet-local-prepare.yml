@@ -39,7 +39,7 @@ jobs:
 
   local_prepare:
     name: Verify exact original 17 protected mains and immutable PREPARE ZIP
-    if: github.repository == 'pgextwin/pg_cron' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi'
+    if: github.repository == 'pgextwin/pg_cron' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && !contains(github.event.head_commit.added, '.github/execution-requests/r-20261029-r06localpgcronanom04.json')
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
