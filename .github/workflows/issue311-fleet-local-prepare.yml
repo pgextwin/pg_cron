@@ -37,9 +37,46 @@ jobs:
       - run: python -m pip install --disable-pip-version-check 'jsonschema>=4,<5'
       - run: python tests/test-issue311-r06-fleet-local-prepare.py
 
+  classify_one_shot:
+    # GitHub push head_commit.added did not match the actual protected merge;
+    # independently classify the exact first-parent diff, never a user-set flag.
+    name: Classify genuine original skip-only source (NONPUBLISHING)
+    if: github.repository == 'pgextwin/pg_cron' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      skip: ${{ steps.classify.outputs.skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: classify
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          changed = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD^1', 'HEAD'], text=True).splitlines()
+          path = '.github/execution-requests/r-20261029-r06localpgcronanom06.json'
+          is_exact = changed == [path]
+          if is_exact:
+            x = json.loads(Path(path).read_text(encoding='utf-8'))
+            is_exact = (
+              x.get('schemaVersion') == 1
+              and x.get('kind') == 'pgextwin-local-prepare'
+              and x.get('requestId') == 'r-20261029-r06localpgcronanom06'
+              and x.get('mode') == 'PREPARE'
+              and x.get('publicReleaseAuthorized') is False)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+            f.write('skip=' + ('true' if is_exact else 'false') + chr(10))
+          PY
+
   local_prepare:
     name: Verify exact original 17 protected mains and immutable PREPARE ZIP
-    if: github.repository == 'pgextwin/pg_cron' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && !contains(github.event.head_commit.added, '.github/execution-requests/r-20261029-r06localpgcronanom04.json')
+    needs: classify_one_shot
+    if: github.repository == 'pgextwin/pg_cron' && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor == 'ShutenOishi' && needs.classify_one_shot.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
