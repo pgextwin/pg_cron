@@ -59,14 +59,14 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           changed = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD^1', 'HEAD'], text=True).splitlines()
-          path = '.github/execution-requests/r-20261029-r06localpgcronanom06.json'
+          path = '.github/execution-requests/r-20261030-r06localpgcronanom07.json'
           is_exact = changed == [path]
           if is_exact:
             x = json.loads(Path(path).read_text(encoding='utf-8'))
             is_exact = (
               x.get('schemaVersion') == 1
               and x.get('kind') == 'pgextwin-local-prepare'
-              and x.get('requestId') == 'r-20261029-r06localpgcronanom06'
+              and x.get('requestId') == 'r-20261030-r06localpgcronanom07'
               and x.get('mode') == 'PREPARE'
               and x.get('publicReleaseAuthorized') is False)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
