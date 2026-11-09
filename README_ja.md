@@ -12,10 +12,10 @@
 
 1. バックアップを取得し、[上流ドキュメント](https://github.com/citusdata/pg_cron)で必要条件を確認します。
 2. ファイルを置き換える前にPostgreSQLを停止します。対応するZIPのlib/とshare/extension/以下のファイルを、PostgreSQLの同名ディレクトリに配置します。
-3. postgresql.confのshared_preload_librariesにpg_cronを追加し、拡張機能を導入するデータベースをcron.database_nameで指定して再起動します。ジョブ実行時の接続認証やバックグラウンドワーカーの設定は上流ドキュメントを確認してください。
-4. 必要な設定を反映してPostgreSQLを起動し、利用するデータベースでCREATE EXTENSION pg_cron;を実行します。
+3. `postgresql.conf`の`shared_preload_libraries`にpg_cronを追加し、`cron.database_name`で拡張機能を導入するデータベースを指定します。ジョブ実行時の接続認証やバックグラウンドワーカーの設定は上流ドキュメントを確認してください。
+4. 設定を反映してPostgreSQLを起動し、利用するデータベースで`CREATE EXTENSION pg_cron;`を実行します。稼働中のPostgreSQLで事前ロード設定を変更した場合は、再起動が必要です。
 
-ReleaseのSHA256SUMS.txtでダウンロードしたファイルを照合してください。SPDX形式のSBOM、脆弱性レポート、署名付き証明の有無はReleaseで確認できます。本番導入前に検証環境で動作を確認してください。
+ダウンロードしたファイルを、Releaseに掲載された`SHA256SUMS.txt`と照合してください。SPDX形式のSBOM、脆弱性レポート、署名付き証明の有無はReleaseで確認できます。本番環境に導入する前に、検証環境で動作を確認してください。
 
 ## ライセンス
 

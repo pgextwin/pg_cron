@@ -73,7 +73,7 @@ pg_cronはbackground workerを起動するため、`postgresql.conf` の `shared
 shared_preload_libraries = 'pg_cron'
 ~~~
 
-既に他のextensionを設定している場合は、既存値を消さずPostgreSQLのリスト形式で `pg_cron` を追加してください。
+ほかの拡張機能を既に設定している場合は、既存の値を消さず、PostgreSQLのリスト形式で `pg_cron` を追加してください。
 
 例:
 
@@ -85,15 +85,15 @@ shared_preload_libraries = 'pg_stat_statements,pg_cron'
 
 ## 4. metadata databaseを決める
 
-pg_cronのmetadata tableはcluster内の1 databaseだけに作成されます。初期値は `postgres` です。
+pg_cronのメタデータテーブルは、クラスター内の1つのデータベースにだけ作成されます。初期値は `postgres` です。
 
 ~~~conf
 cron.database_name = 'postgres'
 ~~~
 
-別databaseを使う場合は、PostgreSQL起動前に設定してください。
+別のデータベースを使う場合は、PostgreSQLの起動前に設定してください。
 
-pg_cronは1つのclusterにつき1 databaseにだけインストールできます。他databaseでjobを実行したい場合は、公式の `cron.schedule_in_database()` を使用します。
+pg_cronは1つのクラスターにつき1つのデータベースにだけインストールできます。別のデータベースでジョブを実行したい場合は、公式の `cron.schedule_in_database()` を使用します。
 
 ## 5. job実行方法を選ぶ
 
@@ -191,7 +191,7 @@ SELECT cron.schedule(
 );
 ~~~
 
-確認後は不要なjobを削除してください。
+確認後は不要なジョブを削除してください。
 
 ## job実行履歴
 
