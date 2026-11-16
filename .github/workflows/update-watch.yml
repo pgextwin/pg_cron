@@ -4,7 +4,7 @@ name: Upstream candidate after verified central daily fleet scan
 # Candidate only. No manual UPDATE, PUBLISH, Release, or broad write token here.
 on:
   schedule:
-    - cron: "30 * * * *"
+    - cron: "25 * * * *"
   push:
     branches: [main]
     paths:
