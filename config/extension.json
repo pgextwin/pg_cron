@@ -9,7 +9,7 @@
   },
   "postgresql": {
     "minMajor": 14,
-    "maxMajor": 18
+    "maxMajor": 19
   },
   "windows": {
     "architecture": "x64"
