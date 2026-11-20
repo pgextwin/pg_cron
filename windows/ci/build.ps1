@@ -78,11 +78,18 @@ else {
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $cmdFile = Join-Path $tempRoot "pg_cron-build.cmd"
 
+# PostgreSQL 19 headers use C11 constructs (_Noreturn, alignas in c.h) that
+# MSVC accepts only in C11 mode. The CL environment variable prepends the
+# option to every cl invocation under nmake (wal2json /std:c11 and pg_ivm
+# -Dc_std=c11 precedents for the same PG19 headers).
+$clEnvLine = if ($pgMajor -ge 19) { 'set "CL=/std:c11"' } else { '' }
+
 @"
 @echo off
 call "$vsDevCmd" -arch=x64 -host_arch=x64
 if errorlevel 1 exit /b %errorlevel%
 set "PGROOT=$PgRoot"
+$clEnvLine
 cd /d "$UpstreamDir"
 nmake /F "$makefileName" all
 "@ | Set-Content -Path $cmdFile -Encoding ascii
