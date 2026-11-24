@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "distribution": "dll-sql",
+  "sqlVersion": "1.6",
+  "sqlInstallPath": ["1.0", "1.1", "1.2", "1.3", "1.4", "1.4-1", "1.5", "1.6"],
+  "files": [
+    {
+      "source": "upstream",
+      "path": "pg_cron.dll",
+      "destination": "lib/pg_cron.dll",
+      "targets": ["install", "zip"]
+    },
+    {
+      "source": "upstream",
+      "path": "pg_cron.control",
+      "destination": "share/extension/pg_cron.control",
+      "targets": ["install", "zip"]
+    },
+    {
+      "source": "upstream",
+      "path": "pg_cron--1.0.sql",
+      "destination": "share/extension/pg_cron--1.0.sql",
+      "targets": ["install", "zip"]
+    },
+    {
+      "source": "upstream",
+      "path": "pg_cron--*--*.sql",
+      "destination": "share/extension/{fileName}",
+      "targets": ["install", "zip"],
+      "expectedCount": 7
+    },
+    {
+      "source": "license",
+      "path": "LICENSE",
+      "destination": "LICENSE",
+      "targets": ["zip"]
+    },
+    {
+      "source": "upstream",
+      "path": "README.md",
+      "destination": "UPSTREAM-README.md",
+      "targets": ["zip"]
+    },
+    {
+      "source": "upstream",
+      "path": "CHANGELOG.md",
+      "destination": "UPSTREAM-CHANGELOG.md",
+      "targets": ["zip"]
+    }
+  ],
+  "packageInfo": [
+    "pg_cron Windows binary package",
+    "================================",
+    "",
+    "Upstream repository: {upstreamRepository}",
+    "Upstream ref:        {upstreamRef}",
+    "Upstream commit:     {upstreamCommit}",
+    "pg_cron release:     {version}",
+    "PostgreSQL major:    {pgMajor}",
+    "PostgreSQL tested:   {pgTested}",
+    "Architecture:        {architecture}",
+    "Compiler:            MSVC",
+    "License:             PostgreSQL-style license; see LICENSE",
+    "",
+    "This is an unofficial Windows binary package built from the official pg_cron source.",
+    "pg_cron requires shared_preload_libraries=pg_cron and must be configured according",
+    "to the upstream documentation."
+  ]
+}
